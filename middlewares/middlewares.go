@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/snokpok/scp-go/configs"
 	"github.com/snokpok/scp-go/utils"
 )
 
@@ -60,6 +61,23 @@ func MwLogging(next http.Handler) http.Handler {
 func MwUtility(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Add("Content-Type", "application/json")
+		next.ServeHTTP(rw, r)
+	})
+}
+
+func HelperSetCORSHeaders(rw http.ResponseWriter, r *http.Request) int {
+	// returns 1 -> exit all control flow close rw stream from outside, and 0 else
+	rw.Header().Set("Access-Allow-Control-Origin", strings.Join(configs.ALLOWED_ORIGINS, ","))
+	rw.Header().Set("Access-Control-Allow-Headers", "authentication, content-type")
+	if r.Method == http.MethodOptions {
+		return 1
+	}
+	return 0
+}
+
+func MwPreflightCORSRequestRespond(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		log.Println("--options preflight request--")
 		next.ServeHTTP(rw, r)
 	})
 }

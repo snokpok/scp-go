@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/snokpok/scp-go/configs"
 )
 
 type AuthTokenProps struct {
@@ -24,7 +25,7 @@ func CreateAppAuthToken(userData AuthTokenProps) (string, error) {
 		userData.Email,
 		jwt.StandardClaims{
 			Issuer:    os.Getenv("CLIENT_ID"),
-			ExpiresAt: time.Now().Add(60 * time.Minute).Unix(),
+			ExpiresAt: time.Now().Add(configs.JWT_TIMEOUT).Unix(),
 		},
 	}
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(secretKey)
