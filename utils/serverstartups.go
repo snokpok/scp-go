@@ -15,7 +15,6 @@ import (
 )
 
 func ConnectMongoDBSetup() (*mongo.Client, error) {
-
 	// starting up the database client with timeout of 5s
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer cancel()
@@ -41,11 +40,27 @@ func CreateIndexesMDB(mdb *mongo.Client) {
 	}
 	UserCol := mdb.Database("main").Collection("users")
 	opts := options.CreateIndexes().SetMaxTime(5 * time.Second)
-	names, err := UserCol.Indexes().CreateMany(context.Background(), ivModels, opts)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("successfully created indexes: ", strings.Join(names, ", "))
+
+    ctx, cancel := context.WithTimeout(context.Background(), 3 * time.Second)
+
+    // run the 
+    createManyIndexChan := make(chan int, 1)
+    var names []string
+    go func() {
+        namesCreated, err := UserCol.Indexes().CreateMany(ctx, ivModels, opts)
+        names = namesCreated
+        if err != nil {
+            log.Println("failed in creating indexes " + strings.Join(namesCreated, ", "))
+        }
+        createManyIndexChan <- 1
+    }()
+    defer cancel()
+    select {
+    case <-ctx.Done():
+        log.Println("timed out creating indexes")
+    case <-createManyIndexChan:
+        log.Println("successfully created indexes: ", strings.Join(names, ", "))
+    }
 }
 
 func ConnectSetupRedis() (*redis.Client, error) {

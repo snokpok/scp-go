@@ -20,7 +20,6 @@ func CreateAppAuthToken(userData AuthTokenProps) (string, error) {
 	// create the jwt token to authorize client to THIS server (not Spotify's)
 	secretKey := []byte(os.Getenv("SECRET_JWT"))
 	claims := UserClaim{
-		userData.ID,
 		userData.Username,
 		userData.Email,
 		jwt.StandardClaims{

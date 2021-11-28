@@ -3,10 +3,9 @@ package middlewares
 import (
 	"errors"
 	"log"
-	"net/http"
 	"strings"
 
-	"github.com/snokpok/scp-go/configs"
+	"github.com/gin-gonic/gin"
 	"github.com/snokpok/scp-go/utils"
 )
 
@@ -30,54 +29,18 @@ func DecodeTokenHelper(authHeader string) (*utils.UserClaim, error) {
 	return &claims, nil
 }
 
-func (j *JWTAuth) MwJWTAuthorizeCurrentUser(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (j *JWTAuth) MwJWTAuthorizeCurrentUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
 		log.Println("--Authorizing via JWT--")
-		claims, err := DecodeTokenHelper(r.Header.Get("Authorization"))
+		claims, err := DecodeTokenHelper(c.Request.Header.Get("Authorization"))
 		log.Println(claims)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+            c.AbortWithStatusJSON(401, gin.H{
+                "error": err.Error(),
+            })
 			return
 		}
 		j.Claims = claims
-		next.ServeHTTP(w, r)
-	})
-}
-
-func MwRefreshSpotifyToken(next http.Handler) http.Handler {
-	log.Println("--Refreshing token--")
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
-	})
-}
-
-func MwLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println(r.RemoteAddr + " " + r.Method + " " + r.RequestURI)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func MwUtility(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		rw.Header().Add("Content-Type", "application/json")
-		next.ServeHTTP(rw, r)
-	})
-}
-
-func HelperSetCORSHeaders(rw http.ResponseWriter, r *http.Request) int {
-	// returns 1 -> exit all control flow close rw stream from outside, and 0 else
-	rw.Header().Set("Access-Allow-Control-Origin", strings.Join(configs.ALLOWED_ORIGINS, ","))
-	rw.Header().Set("Access-Control-Allow-Headers", "authentication, content-type")
-	if r.Method == http.MethodOptions {
-		return 1
+        c.Next()
 	}
-	return 0
-}
-
-func MwPreflightCORSRequestRespond(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		log.Println("--options preflight request--")
-		next.ServeHTTP(rw, r)
-	})
 }
