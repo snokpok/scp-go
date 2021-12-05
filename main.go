@@ -4,12 +4,14 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
+	uuid "github.com/satori/go.uuid"
 	"github.com/snokpok/scp-go/configs"
 	mws "github.com/snokpok/scp-go/middlewares"
 	schema "github.com/snokpok/scp-go/schema"
@@ -20,42 +22,37 @@ import (
 
 var mdb *mongo.Client
 var rdb *redis.Client
-var jwt *mws.JWTAuth
 
 var (
 	UserCol *mongo.Collection
 )
 
 func GetMe(c *gin.Context) {
-	// get all user info from db including access_token and refresh_token
-	if jwt.Claims == nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid access token"})
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	me := schema.User{}
-
-	mongoRes := UserCol.FindOne(ctx, bson.M{"email": jwt.Claims.Email})
-	err := mongoRes.Decode(&me)
+	// get all user info from db with secret key
+	secret, err := mws.HelperGetTokenValidHeader(c.Request.Header.Get("Authorization"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		c.AbortWithError(http.StatusInternalServerError, err)
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, me)
+	user, err := utils.FindUserBySecretKey(mdb, secret)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, user)
 }
 
 func CreateUser(c *gin.Context) {
 	// create user, store (username, email, spotify_id, access_token, refresh_token)
+	// if conflict user then don't do anything
+	// new user will have id->email entry in redis
 	var userData schema.UserBody
 	if err := c.ShouldBindWith(&userData, binding.JSON); err != nil {
 		c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
+	log.Println(userData)
+	userData.SecretKey = uuid.NewV4().String()
 	insertCtx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer cancel()
 
@@ -63,69 +60,24 @@ func CreateUser(c *gin.Context) {
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
 			log.Println(err)
-			// go get the current access token instead
-			ctxGet, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			strCmd := rdb.Get(ctxGet, userData.Email)
-			currAcTkn := strCmd.Val()
-			if currAcTkn != "" {
-				c.JSON(http.StatusConflict, gin.H{
-					"message": "User already created",
-					"token":   currAcTkn,
-				})
-				return
-			}
+			c.JSON(http.StatusConflict, gin.H{
+				"message": "User already created",
+			})
+			return
 		}
 	}
 
-	token, err := utils.CreateAppAuthToken(utils.AuthTokenProps{
-		Username: userData.Username,
-		Email:    userData.Email,
-	})
+	// TODO: generate token here
+
+	err = utils.SetKeyRDB(rdb, userData.SecretKey, userData.Email, configs.JWT_TIMEOUT)
 	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		c.AbortWithStatusJSON(500, err.Error())
 		return
 	}
 
-	ctxSetRDB, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	statCmdSetIDAT := rdb.Set(ctxSetRDB, userData.Email, token, configs.JWT_TIMEOUT)
-
-	if statCmdSetIDAT.Err() != nil {
-		http.Error(c.Writer, statCmdSetIDAT.Err().Error(), http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(200, map[string]interface{}{
-		"token":  token,
+	c.JSON(200, gin.H{
+		"token":  userData.SecretKey,
 		"result": res,
-	})
-}
-
-func GetCurrentAppAccessToken(w http.ResponseWriter, r *http.Request) {
-}
-
-func RefreshAppToken(c *gin.Context) {
-	// refreshes by generating a new jwt token
-	// expect an old jwt to verify that the person really has expired
-	// if not expired yet then just renew and expire the current one
-	bearerAuthHeader := c.Request.Header.Get("Authorization")
-	claims, err := mws.DecodeTokenHelper(bearerAuthHeader)
-	if err != nil {
-		c.AbortWithError(http.StatusUnauthorized, err)
-		return
-	}
-
-	newAppAuthToken, err := utils.CreateAppAuthToken(utils.AuthTokenProps{
-		Username: claims.Username,
-		Email:    claims.Email,
-	})
-	if err != nil {
-		c.AbortWithError(http.StatusUnauthorized, err)
-		return
-	}
-	c.JSON(200, map[string]string{
-		"token": newAppAuthToken,
 	})
 }
 
@@ -133,8 +85,12 @@ func GetSCP(c *gin.Context) {
 	// get the currently playing song for the user
 	ctxGet, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	userFound := schema.User{}
-	err := UserCol.FindOne(ctxGet, bson.M{"email": jwt.Claims.Email}).Decode(&userFound)
+	secret, err := mws.HelperGetTokenValidHeader(c.Request.Header.Get("Authorization"))
+	if err != nil {
+		c.AbortWithError(http.StatusNotFound, err)
+		return
+	}
+	userFound, err := utils.FindUserBySecretKey(mdb, secret)
 	if err != nil {
 		c.AbortWithError(http.StatusNotFound, err)
 		return
@@ -142,10 +98,10 @@ func GetSCP(c *gin.Context) {
 
 	resultScp, _ := utils.RequestSCPFromSpotify(userFound.AccessToken)
 
-	log.Println(resultScp)
 	if resultScp["error"] != nil {
 		// request refreshed access token from spotify
 		newTkn, err := utils.RequestNewAccessTokenFromSpotify(userFound.RefreshToken)
+		log.Println("err", err.Error())
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusFailedDependency, gin.H{"error": err.Error()})
 			return
@@ -171,6 +127,36 @@ func GetSCP(c *gin.Context) {
 	c.JSON(200, resultScp)
 }
 
+func RefreshToken(c *gin.Context) {
+	split := strings.Split(c.Request.Header.Get("Authorization"), " ")
+	if len(split) < 2 {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid header"})
+		return
+	}
+	if split[0] != "Basic" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Must have basic header"})
+		return
+	}
+	secret := split[1]
+	user, err := utils.FindUserBySecretKey(mdb, secret)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	token, err := utils.GenerateAccessToken(utils.AuthTokenProps{
+		ID: user.ID,
+		Email: user.Email,
+		Username: user.Username,
+	})
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{
+		"access_token": token,
+	})
+}
+
 func main() {
 	// load in envfile
 	err := godotenv.Load(".env")
@@ -184,17 +170,18 @@ func main() {
 		log.Fatal(err)
 	}
 	// utils.CreateIndexesMDB(mdb)
-	rdb, err = utils.ConnectSetupRedis()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// rdb, err = utils.ConnectSetupRedis()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	// collections
 	UserCol = mdb.Database("main").Collection("users")
 
 	// router setup
-	jwt = &mws.JWTAuth{}
 	r := gin.Default()
+
+	r.Use(mws.CORSMiddleware())
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -202,9 +189,9 @@ func main() {
 		})
 	})
 	r.POST("/user", CreateUser)
-	r.POST("/refresh-app-token", jwt.MwJWTAuthorizeCurrentUser(), RefreshAppToken)
-	r.GET("/me", jwt.MwJWTAuthorizeCurrentUser(), GetMe)
-	r.GET("/scp", jwt.MwJWTAuthorizeCurrentUser(), GetSCP)
+	r.GET("/me", GetMe)
+	r.GET("/scp", GetSCP)
+	r.POST("/refresh", RefreshToken)
 
 	http.ListenAndServe(":4000", r)
 }

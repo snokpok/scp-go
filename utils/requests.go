@@ -6,7 +6,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 )
 
 func RequestSCPFromSpotify(accessToken string) (map[string]interface{}, error) {
@@ -35,16 +37,19 @@ func RequestSCPFromSpotify(accessToken string) (map[string]interface{}, error) {
 }
 
 func RequestNewAccessTokenFromSpotify(refreshToken string) (string, error) {
+	form := url.Values{}
+	form.Add("grant_type", "refresh_token")
+	form.Add("refresh_token", refreshToken)
+	
 	refreshUrl := "https://accounts.spotify.com/api/token"
-	reqRefreshToken, err := http.NewRequest(http.MethodPost, refreshUrl, nil)
+	reqRefreshToken, err := http.NewRequest(http.MethodPost, refreshUrl, strings.NewReader(form.Encode()))
 	if err != nil {
 		log.Fatal(err)
 	}
 	encodedHeaderClient := base64.StdEncoding.EncodeToString([]byte(os.Getenv("CLIENT_ID") + ":" + os.Getenv("CLIENT_SECRET")))
 	reqRefreshToken.Header.Set("Authorization", "Basic "+encodedHeaderClient)
-	reqRefreshToken.Form.Set("grant_type", "refresh_token")
+	reqRefreshToken.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	reqRefreshToken.Form.Set("refresh_token", refreshToken)
 	hcli := &http.Client{}
 	resp, err := hcli.Do(reqRefreshToken)
 
@@ -56,12 +61,13 @@ func RequestNewAccessTokenFromSpotify(refreshToken string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var resultNewSpotifyToken map[string]string
+	log.Println(string(responseBody))
+	resultNewSpotifyToken := make(map[string]interface{})
 	err = json.Unmarshal(responseBody, &resultNewSpotifyToken)
 	if err != nil {
 		return "", err
 	}
-	log.Println(resultNewSpotifyToken)
-	newAcTkn := resultNewSpotifyToken["access_token"]
+	newAcTkn := resultNewSpotifyToken["access_token"].(string)
+	log.Println(newAcTkn)
 	return newAcTkn, nil
 }

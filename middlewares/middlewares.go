@@ -7,40 +7,56 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/snokpok/scp-go/utils"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type JWTAuth struct {
-	Claims *utils.UserClaim
-}
-
-func DecodeTokenHelper(authHeader string) (*utils.UserClaim, error) {
+func HelperGetTokenValidHeader(authHeader string) (string, error) {
 	splitHeader := strings.Split(authHeader, " ")
 	if len(splitHeader) < 2 {
-		return nil, errors.New("no header; unauthorized")
+		return "", errors.New("no header; unauthorized")
 	}
-	appAcToken := splitHeader[1]
-	if appAcToken == "" {
-		return nil, errors.New("unauthorized")
+	secret := splitHeader[1]
+	if secret == "" {
+		return "", errors.New("unauthorized")
 	}
-	claims, err := utils.DecodeAppAuthToken(appAcToken)
-	if err != nil {
-		return nil, errors.New("invalid access token")
-	}
-	return &claims, nil
+	return secret, nil
 }
 
-func (j *JWTAuth) MwJWTAuthorizeCurrentUser() gin.HandlerFunc {
+func MwAuthorizeCurrentUser(mdb *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Println("--Authorizing via JWT--")
-		claims, err := DecodeTokenHelper(c.Request.Header.Get("Authorization"))
-		log.Println(claims)
+		log.Println("--Authorizing user--")
+		token, err := HelperGetTokenValidHeader(c.Request.Header.Get("Authorization"))
 		if err != nil {
             c.AbortWithStatusJSON(401, gin.H{
                 "error": err.Error(),
             })
 			return
 		}
-		j.Claims = claims
+		user, err := utils.DecodeAccessToken(token)
+		log.Println(user)
+		if err != nil {
+            c.AbortWithStatusJSON(401, gin.H{
+                "error": err.Error(),
+            })
+			return
+		}
         c.Next()
 	}
+}
+
+
+func CORSMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        c.Header("Access-Control-Allow-Origin", "*")
+        c.Header("Access-Control-Allow-Credentials", "true")
+        c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+        c.Header("Access-Control-Allow-Methods", "POST,HEAD,PATCH, OPTIONS, GET, PUT")
+
+        if c.Request.Method == "OPTIONS" {
+            c.AbortWithStatus(204)
+            return
+        }
+
+        c.Next()
+    }
 }
