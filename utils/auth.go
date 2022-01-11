@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"errors"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -12,6 +14,21 @@ type AuthTokenProps struct {
 	ID       interface{}
 	Username string
 	Email    string
+}
+
+func HelperGetTokenValidateHeader(authHeader string) (string, error) {
+	splitHeader := strings.Split(authHeader, " ")
+	if len(splitHeader) < 2 {
+		return "", errors.New("no header; unauthorized")
+	}
+	if splitHeader[0] != "Basic" && splitHeader[0] != "Bearer" {
+		return "", errors.New("incorrect token scheme; must be basic or bearer")
+	}
+	secret := splitHeader[1]
+	if secret == "" {
+		return "", errors.New("unauthorized")
+	}
+	return secret, nil
 }
 
 func GenerateAccessToken(userData AuthTokenProps) (string, error) {
@@ -39,7 +56,7 @@ func DecodeAccessToken(token string) (UserClaim, error) {
 		return []byte(os.Getenv("SECRET_JWT")), nil
 	})
 	if tokenInfo == nil || !tokenInfo.Valid {
-		return UserClaim{}, err
+		return claims, err
 	}
 	return claims, nil
 }
