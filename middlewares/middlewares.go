@@ -32,6 +32,7 @@ func MwAuthorizeCurrentUser(mdb *mongo.Client) gin.HandlerFunc {
 		}
 		// create child context with the student claims
 		c.Set("user", user.Email)
+		c.Set("claims", user)
 		c.Next()
 	}
 }

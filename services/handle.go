@@ -21,11 +21,8 @@ import (
 
 func GetCurrentUser(c *gin.Context, dbcs *schema.DbClients) (*schema.User, int, error) {
 	// get all user info from db with secret key
-	claims := c.Request.Context().Value(schema.ContextMeClaim).(utils.UserClaim)
-	if c.Request.Context().Value(schema.ContextMeClaim) == nil {
-		return nil, 401, errors.New("no claims in context")
-	}
-	users, err := repositories.FindUsers(dbcs.Mdb, bson.M{"email": claims.Email})
+	email := c.GetString(string(schema.ContextMeClaim))
+	users, err := repositories.FindUsers(dbcs.Mdb, bson.M{"email": email})
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
@@ -89,10 +86,9 @@ func CreateUser(c *gin.Context, dbcs *schema.DbClients) (*CreateUserResponse, in
 
 func GetFromSpotifyCurrentlyPlaying(c *gin.Context, dbcs *schema.DbClients) (*map[string]interface{}, int, error) {
 
-	user := c.GetString("user")
-	log.Println(user)
+	email := c.GetString(string(schema.ContextMeClaim))
 
-	userFound, err := repositories.FindOneUser(dbcs.Mdb, bson.M{"email": user})
+	userFound, err := repositories.FindOneUser(dbcs.Mdb, bson.M{"email": email})
 	if err != nil {
 		return nil, 404, err
 	}
@@ -101,17 +97,17 @@ func GetFromSpotifyCurrentlyPlaying(c *gin.Context, dbcs *schema.DbClients) (*ma
 
 	if resultScp["error"] != nil {
 		// request refreshed access token from spotify
-		log.Println("refreshing new access token from spotify")
+		log.Println("--refreshing new access token from spotify--")
 		newTkn, err := utils.RequestNewAccessTokenFromSpotify(userFound.RefreshToken)
 		if err != nil {
 			return nil, http.StatusFailedDependency, err
 		}
 
-		// update the new issued access token from spotify
+		// update the newly issued access token from spotify
 		updateCmd := bson.M{
 			"$set": bson.M{"access_token": newTkn},
 		}
-		dbcs.Mdb.Database("main").Collection("users").FindOneAndUpdate(context.Background(), bson.M{"email": user}, updateCmd)
+		dbcs.Mdb.Database("main").Collection("users").FindOneAndUpdate(context.Background(), bson.M{"email": email}, updateCmd)
 
 		// fetch the new CP results
 		resultScp, err = utils.RequestSCPFromSpotify(newTkn)
