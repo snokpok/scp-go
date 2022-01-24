@@ -7,10 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
-	mws "github.com/snokpok/scp-go/middlewares"
-	schema "github.com/snokpok/scp-go/schema"
-	"github.com/snokpok/scp-go/services"
-	"github.com/snokpok/scp-go/utils"
+	mws "github.com/snokpok/scp-go/src/middlewares"
+	schema "github.com/snokpok/scp-go/src/schema"
+	"github.com/snokpok/scp-go/src/services"
+	"github.com/snokpok/scp-go/src/utils"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
