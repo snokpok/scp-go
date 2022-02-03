@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -83,6 +85,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	deployMode := os.Getenv("DEPLOY_MODE")
+	if deployMode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	completionChan := make(chan string)
 	// setup mongodb + create indexes
 	go func() {
@@ -125,5 +132,11 @@ func main() {
 	r.GET("/me", mws.MwAuthorizeCurrentUser(mdb), GetMe)
 	r.GET("/scp", mws.MwAuthorizeCurrentUser(mdb), GetSCP)
 
-	http.ListenAndServe(":4000", r)
+	port := os.Getenv("PORT")
+	if len(port) == 0 {
+		port = "4000"
+	}
+
+	log.Printf("Server listening on port %s", port)
+	http.ListenAndServe(fmt.Sprintf(":%s", port), r)
 }
