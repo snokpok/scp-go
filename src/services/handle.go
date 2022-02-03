@@ -10,7 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	uuid "github.com/satori/go.uuid"
-	"github.com/snokpok/scp-go/src/configs"
 	"github.com/snokpok/scp-go/src/repositories"
 	"github.com/snokpok/scp-go/src/schema"
 	"github.com/snokpok/scp-go/src/utils"
@@ -50,10 +49,19 @@ func CreateUser(c *gin.Context, dbcs *schema.DbClients) (*CreateUserResponse, in
 	insertCtx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer cancel()
 
+	// try to create the user
 	res, err := dbcs.Mdb.Database("main").Collection("users").InsertOne(insertCtx, userData)
-	if err != nil && mongo.IsDuplicateKeyError(err) {
-		// TODO: generate token here
-		user, _ := repositories.FindOneUser(dbcs.Mdb, bson.M{"email": userData.Email})
+	if err != nil {
+		// if it's not already created => some other error to handle
+		if !mongo.IsDuplicateKeyError(err) {
+			return &CreateUserResponse{}, 400, err
+		}
+		// if it's created then handle creation of app-domain access token
+		user, err := repositories.FindOneUser(dbcs.Mdb, bson.M{"_id": userData.ID})
+		if err != nil {
+			// this often happens due to timeout or just some other problem interacting with the db
+			return &CreateUserResponse{}, 400, err
+		}
 		token, _ = utils.GenerateAccessToken(utils.AuthTokenProps{
 			ID:       user.ID.Hex(),
 			Email:    userData.Email,
@@ -65,16 +73,12 @@ func CreateUser(c *gin.Context, dbcs *schema.DbClients) (*CreateUserResponse, in
 		}, 200, errors.New("user already created")
 	}
 
-	// TODO: generate token here
+	// generate token here
 	token, err = utils.GenerateAccessToken(utils.AuthTokenProps{
 		ID:       res.InsertedID.(primitive.ObjectID).Hex(),
 		Email:    userData.Email,
 		Username: userData.Username,
 	})
-	if err != nil {
-		return nil, 500, err
-	}
-	err = utils.SetKeyRDB(dbcs.Rdb, userData.SecretKey, userData.Email, configs.JWT_TIMEOUT)
 	if err != nil {
 		return nil, 500, err
 	}
