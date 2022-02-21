@@ -46,7 +46,7 @@ func CreateUser(c *gin.Context, dbcs *schema.DbClients) (*CreateUserResponse, in
 		return nil, 400, err
 	}
 	userData.SecretKey = uuid.NewV4().String()
-	insertCtx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	insertCtx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 
 	// try to create the user

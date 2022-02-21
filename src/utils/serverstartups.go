@@ -15,8 +15,8 @@ import (
 )
 
 func ConnectMongoDBSetup() (*mongo.Client, error) {
-	// starting up the database client with timeout of 5s
-	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	// starting up the database client with timeout of 10s
+	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 	defer cancel()
 	tlsCertPath := "src/certs/cert-rw-user.pem"
 	uri := "mongodb+srv://main.ewmm7.mongodb.net/main?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority&tlsCertificateKeyFile=" + tlsCertPath
