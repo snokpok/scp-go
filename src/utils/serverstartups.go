@@ -16,7 +16,7 @@ import (
 
 func ConnectMongoDBSetup() (*mongo.Client, error) {
 	// starting up the database client with timeout of 5s
-	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.TODO(), 20*time.Second)
 	defer cancel()
 	tlsCertPath := "src/certs/cert-rw-user.pem"
 	uri := "mongodb+srv://main.ewmm7.mongodb.net/main?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority&tlsCertificateKeyFile=" + tlsCertPath
@@ -41,26 +41,26 @@ func CreateIndexesMDB(mdb *mongo.Client) {
 	UserCol := mdb.Database("main").Collection("users")
 	opts := options.CreateIndexes().SetMaxTime(5 * time.Second)
 
-    ctx, cancel := context.WithTimeout(context.Background(), 3 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
-    // run the 
-    createManyIndexChan := make(chan int, 1)
-    var names []string
-    go func() {
-        namesCreated, err := UserCol.Indexes().CreateMany(ctx, ivModels, opts)
-        names = namesCreated
-        if err != nil {
-            log.Println("failed in creating indexes " + strings.Join(namesCreated, ", "))
-        }
-        createManyIndexChan <- 1
-    }()
-    defer cancel()
-    select {
-    case <-ctx.Done():
-        log.Println("timed out creating indexes")
-    case <-createManyIndexChan:
-        log.Println("successfully created indexes: ", strings.Join(names, ", "))
-    }
+	// run the
+	createManyIndexChan := make(chan int, 1)
+	var names []string
+	go func() {
+		namesCreated, err := UserCol.Indexes().CreateMany(ctx, ivModels, opts)
+		names = namesCreated
+		if err != nil {
+			log.Println("failed in creating indexes " + strings.Join(namesCreated, ", "))
+		}
+		createManyIndexChan <- 1
+	}()
+	defer cancel()
+	select {
+	case <-ctx.Done():
+		log.Println("timed out creating indexes")
+	case <-createManyIndexChan:
+		log.Println("successfully created indexes: ", strings.Join(names, ", "))
+	}
 }
 
 func ConnectSetupRedis() (*redis.Client, error) {

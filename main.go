@@ -1,11 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"fmt"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
@@ -121,6 +122,8 @@ func main() {
 	// router setup
 	r := gin.Default()
 
+	corsConfig := cors.DefaultConfig()
+	corsConfig.AllowAllOrigins = true
 	r.Use(mws.CORSMiddleware())
 
 	r.GET("/", func(c *gin.Context) {
