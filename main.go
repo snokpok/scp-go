@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/snokpok/scp-go/src/controllers"
@@ -54,8 +53,6 @@ func main() {
 	// router setup
 	r := gin.Default()
 
-	corsConfig := cors.DefaultConfig()
-	corsConfig.AllowAllOrigins = true
 	r.Use(mws.CORSMiddleware())
 
 	r.GET("/", func(c *gin.Context) {
@@ -73,5 +70,5 @@ func main() {
 	}
 
 	log.Printf("Server listening on port %s", port)
-	http.ListenAndServe(fmt.Sprintf(":%s", port), r)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), r))
 }
