@@ -7,8 +7,6 @@ Using golang because I like it; also kind of an exercise
 
 Database: MongoDB;
 
-- username, email, access_token, refresh_token
-
 A few endpoints:
 
 - POST /user: create user with {email, username, access_token, refresh_token}
