@@ -23,7 +23,6 @@ func MwAuthorizeCurrentUser(mdb *mongo.Client) gin.HandlerFunc {
 			return
 		}
 		user, err := utils.DecodeAccessToken(token)
-		log.Println(user)
 		if err != nil {
 			c.AbortWithStatusJSON(401, gin.H{
 				"error": err.Error(),

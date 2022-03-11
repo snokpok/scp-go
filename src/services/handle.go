@@ -57,7 +57,7 @@ func CreateUser(c *gin.Context, dbcs *schema.DbClients) (*CreateUserResponse, in
 			return &CreateUserResponse{}, 400, err
 		}
 		// if it's created then handle creation of app-domain access token
-		user, err := repositories.FindOneUser(dbcs.Mdb, bson.M{"_id": userData.ID})
+		user, err := repositories.FindOneUser(dbcs.Mdb, bson.M{"email": userData.Email})
 		if err != nil {
 			// this often happens due to timeout or just some other problem interacting with the db
 			return &CreateUserResponse{}, 400, err
