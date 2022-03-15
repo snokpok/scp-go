@@ -18,8 +18,7 @@ func ConnectMongoDBSetup() (*mongo.Client, error) {
 	// starting up the database client with timeout of 5s
 	ctx, cancel := context.WithTimeout(context.TODO(), 20*time.Second)
 	defer cancel()
-	tlsCertPath := "src/certs/cert-rw-user.pem"
-	uri := "mongodb+srv://main.ewmm7.mongodb.net/main?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority&tlsCertificateKeyFile=" + tlsCertPath
+	uri := os.Getenv("MONGODB_CLUSTER_URI")
 	clientConfigs := options.Client().ApplyURI(uri)
 	mdb, err := mongo.Connect(ctx, clientConfigs)
 	if err != nil {
@@ -42,8 +41,6 @@ func CreateIndexesMDB(mdb *mongo.Client) {
 	opts := options.CreateIndexes().SetMaxTime(5 * time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-
-	// run the
 	createManyIndexChan := make(chan int, 1)
 	var names []string
 	go func() {

@@ -40,13 +40,13 @@ func RequestNewAccessTokenFromSpotify(refreshToken string) (string, error) {
 	form := url.Values{}
 	form.Add("grant_type", "refresh_token")
 	form.Add("refresh_token", refreshToken)
-	
+
 	refreshUrl := "https://accounts.spotify.com/api/token"
 	reqRefreshToken, err := http.NewRequest(http.MethodPost, refreshUrl, strings.NewReader(form.Encode()))
 	if err != nil {
 		log.Fatal(err)
 	}
-	encodedHeaderClient := base64.StdEncoding.EncodeToString([]byte(os.Getenv("CLIENT_ID") + ":" + os.Getenv("CLIENT_SECRET")))
+	encodedHeaderClient := base64.StdEncoding.EncodeToString([]byte(os.Getenv("SPOTIFY_CLIENT_ID") + ":" + os.Getenv("SPOTIFY_CLIENT_SECRET")))
 	reqRefreshToken.Header.Set("Authorization", "Basic "+encodedHeaderClient)
 	reqRefreshToken.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

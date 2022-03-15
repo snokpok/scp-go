@@ -36,7 +36,7 @@ func GenerateAccessToken(userData AuthTokenProps) (string, error) {
 		userData.Username,
 		userData.Email,
 		jwt.StandardClaims{
-			Issuer: os.Getenv("CLIENT_ID"),
+			Issuer: os.Getenv("SPOTIFY_CLIENT_ID"),
 		},
 	}
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(secretKey)
