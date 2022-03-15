@@ -16,5 +16,8 @@
 tmp/
 **/.DS_Store
 
-# Environment variables
+# Key environment variables
 .env
+
+# Key files and such
+src/certs/
