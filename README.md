@@ -15,3 +15,10 @@ A few endpoints:
   - (backend): will refresh token to get new access_token & update in db upon request if current access_token expired upon request to Spotify API
   - (this is applied to all routes so something like a middleware that is)
 - GET /login: login user, get back access token to access current api to get SCP
+
+## Installation
+
+1. Clone this repo to local
+2. Run `go mod download` to download dependencies to local cache
+3. Retrieve private files: `.env` and the MongoDB user access key file to be placed in `src/certs/` as `cert-rw-user.pem`
+4. Run the server in `release` mode by `go run main.go`. To build the server into binary run `go build .` instead. To change the server running mode change the `DEPLOY_ENV` variable in your `.env` file. The other acceptable value is `debug` which runs Gin in debug mode.
